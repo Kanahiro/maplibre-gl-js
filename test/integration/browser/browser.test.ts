@@ -99,18 +99,14 @@ describe('browser tests', () => {
 
         test(`${impl.name()} - CJK Characters`, async () => {
             await newTest(impl, 'text-cjk');
-
-            const image = await page.evaluate(() => {
+            await page.evaluate(() => {
                 return new Promise((resolve, _) => {
-                    map.once('idle', () => resolve(map.getCanvas().toDataURL()));
-                    map.setZoom(8);
+                    map.once('idle', () => resolve(true));
                 });
             });
-
-            const pageWithImage = `<html><head></head><body><img src="${image}" width="800" height="600" /></body></html>`;
-
-            const expectedHtml = fs.readFileSync(path.join(__dirname, 'tests/text-cjk/expected-base64-image.html'), 'utf8');
-            expect(pageWithImage).toBe(expectedHtml);
+            const screenshot = await page.screenshot()
+            const expected = fs.readFileSync(path.join(__dirname, 'tests', 'text-cjk', 'expected.png'))
+            expect(screenshot.equals(expected)).toBe(true)
         }, 20000);
     });
 
