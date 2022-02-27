@@ -36,7 +36,7 @@ async function newTest(impl: BrowserType, testName: string) {
     });
 
     page = await context.newPage();
-    await getMapCanvas(`${basePath}/test/integration/browser/tests/${testName}/index.html`, page);
+    await getMapCanvas(`${basePath}/test/integration/browser/tests/${testName}/map.html`, page);
 }
 
 let server = null;

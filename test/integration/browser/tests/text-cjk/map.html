@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MapLibre GL JS debug page</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel='stylesheet' href='../../../../../dist/maplibre-gl.css' />
+<body>
+  <div id="map" style="height:60vh;"></div>
+  <script src='../../../../../dist/maplibre-gl-dev.js'></script>
+  <script>
+    const sampleGeojson = {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [0, 0]
+      },
+      properties: {
+        name_en: 'abcde',
+        name_ja: 'あいうえお',
+        name_ch: '阿衣乌唉哦',
+        name_kr: '아이우'
+      }
+    }
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+          version: 8,
+          glyphs: `${location.origin}/test/integration/assets/glyphs/{fontstack}/{range}.pbf`,
+          sources: {
+            sample: {
+              type: 'geojson',
+              data: sampleGeojson
+            },
+          },
+          "layers":[
+            {
+              "id":"sample-text-left",
+              "type":"symbol",
+              "source":"sample",
+              "layout":{
+                "text-anchor":"top",
+                "text-field":"{name_ja}{name_en}",
+                "text-font":["NotoCJK"],
+                "text-offset":[-10,0],
+              }
+            },
+            {
+              "id":"sample-text-center",
+              "type":"symbol",
+              "source":"sample",
+              "layout":{
+                "text-anchor":"top",
+                "text-field":"{name_ch}{name_kr}",
+                "text-font":["NotoCJK"],
+                "text-offset":[0,0],
+              }
+            },
+            {
+              "id":"sample-text-right",
+              "type":"symbol",
+              "source":"sample",
+              "layout":{
+                "text-anchor":"top",
+                "text-field":"{name_en}{name_ja}",
+                "text-font":["NotoCJK"],
+                "text-offset":[10,0],
+              }
+            },
+          ]
+        },
+        center: [0,0],
+        zoom: 14,
+        fadeDuration: 0
+    });
+  </script>
+</body>
+</html>
