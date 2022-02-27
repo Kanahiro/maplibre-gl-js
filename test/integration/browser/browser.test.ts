@@ -25,7 +25,7 @@ async function getMapCanvas(url, page: Page) {
 
 }
 
-async function newTest(impl: BrowserType) {
+async function newTest(impl: BrowserType, testName: string) {
     browser = await impl.launch({
         headless: false,
     });
@@ -36,7 +36,7 @@ async function newTest(impl: BrowserType) {
     });
 
     page = await context.newPage();
-    await getMapCanvas(`${basePath}/test/integration/browser/fixtures/land.html`, page);
+    await getMapCanvas(`${basePath}/test/integration/browser/tests/${testName}/index.html`, page);
 }
 
 let server = null;
@@ -60,7 +60,7 @@ describe('browser tests', () => {
 
         test(`${impl.name()} - Drag to the left`, async () => {
 
-            await newTest(impl);
+            await newTest(impl, 'interaction');
 
             const canvas = await page.$('.maplibregl-canvas');
             const canvasBB = await canvas.boundingBox();
@@ -82,7 +82,7 @@ describe('browser tests', () => {
 
         test(`${impl.name()} Zoom: Double click at the center`, async () => {
 
-            await newTest(impl);
+            await newTest(impl, 'interaction');
             const canvas = await page.$('.maplibregl-canvas');
             const canvasBB = await canvas.boundingBox();
             await page.mouse.dblclick(canvasBB.x, canvasBB.y);
@@ -98,67 +98,7 @@ describe('browser tests', () => {
         }, 20000);
 
         test(`${impl.name()} - CJK Characters`, async () => {
-            await newTest(impl);
-            await page.evaluate(() => {
-
-                map.setStyle({
-                    version: 8,
-                    glyphs: 'https://mierune.github.io/fonts/{fontstack}/{range}.pbf',
-                    sources: {
-                        sample: {
-                            type: 'geojson',
-                            data: {
-                                type: 'Feature',
-                                geometry: {
-                                    type: 'Point',
-                                    coordinates: [0, 0]
-                                },
-                                properties: {
-                                    'name_en': 'abcde',
-                                    'name_ja': 'あいうえお',
-                                    'name_ch': '阿衣乌唉哦',
-                                    'name_kr': '아이우'
-                                }
-                            }
-                        },
-                    },
-                    'layers':[
-                        {
-                            'id':'sample-text-left',
-                            'type':'symbol',
-                            'source':'sample',
-                            'layout':{
-                                'text-anchor':'top',
-                                'text-field':'{name_ja}{name_en}',
-                                'text-font':['Open Sans Regular'],
-                                'text-offset':[-10, 0],
-                            }
-                        },
-                        {
-                            'id':'sample-text-center',
-                            'type':'symbol',
-                            'source':'sample',
-                            'layout':{
-                                'text-anchor':'top',
-                                'text-field':'{name_ch}{name_kr}',
-                                'text-font':['Open Sans Regular'],
-                                'text-offset':[0, 0],
-                            }
-                        },
-                        {
-                            'id':'sample-text-right',
-                            'type':'symbol',
-                            'source':'sample',
-                            'layout':{
-                                'text-anchor':'top',
-                                'text-field':'{name_en}{name_ja}',
-                                'text-font':['Open Sans Regular'],
-                                'text-offset':[10, 0],
-                            }
-                        },
-                    ]
-                });
-            });
+            await newTest(impl, 'text-cjk');
 
             const image = await page.evaluate(() => {
                 return new Promise((resolve, _) => {
@@ -169,7 +109,7 @@ describe('browser tests', () => {
 
             const pageWithImage = `<html><head></head><body><img src="${image}" width="800" height="600" /></body></html>`;
 
-            const expectedHtml = fs.readFileSync(path.join(__dirname, 'fixtures/expected-base64-image.html'), 'utf8');
+            const expectedHtml = fs.readFileSync(path.join(__dirname, 'tests/text-cjk/expected-base64-image.html'), 'utf8');
             expect(pageWithImage).toBe(expectedHtml);
         }, 20000);
     });
