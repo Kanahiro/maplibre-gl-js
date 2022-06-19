@@ -62,7 +62,7 @@ export default class HandlerInertia {
     _drainInertiaBuffer() {
         const inertia = this._inertiaBuffer,
             now = browser.now(),
-            cutoff = 160;   //msec
+            cutoff = 30;   //msec
 
         while (inertia.length > 0 && now - inertia[0].time > cutoff)
             inertia.shift();
