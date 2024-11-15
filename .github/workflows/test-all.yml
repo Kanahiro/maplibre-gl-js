@@ -57,7 +57,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ${{ github.workspace }}/coverage/jest/codecov.json
           verbose: true
@@ -88,7 +88,7 @@ jobs:
       - run: npm run test-integration-ci
       - name: Upload coverage reports to Codecov
         if: '!cancelled()'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ${{ github.workspace }}/coverage/jest/codecov.json
           verbose: true
@@ -126,7 +126,7 @@ jobs:
           CURRENT_SPLIT_INDEX: ${{ matrix.split }}
       - name: Upload coverage reports to Codecov
         if: '!cancelled()'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ${{ github.workspace }}/coverage/render/codecov.json
           verbose: true
