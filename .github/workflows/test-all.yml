@@ -82,7 +82,7 @@ jobs:
           node-version-file: '.nvmrc'
       - run: npm ci
       - run: npm run build-dist
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: '!cancelled()'
         with:
           name: build-dist-${{ matrix.os }}
@@ -141,7 +141,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload render test failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: render-test-report-${{ matrix.os }}-${{ matrix.split }}
           path: ${{ github.workspace }}/test/integration/render/results.html
