@@ -116,7 +116,7 @@
     "postcss-inline-svg": "^6.0.0",
     "pretty-bytes": "^7.1.0",
     "puppeteer": "^24.40.0",
-    "react": "^19.2.4",
+    "react": "^19.2.5",
     "react-dom": "^19.2.4",
     "rollup": "^4.60.1",
     "rollup-plugin-sourcemaps2": "^0.5.6",
