@@ -87,7 +87,7 @@
     "cssnano": "^7.1.5",
     "d3": "^7.9.0",
     "d3-queue": "^3.0.7",
-    "devtools-protocol": "^0.0.1612613",
+    "devtools-protocol": "^0.0.1615727",
     "diff": "^9.0.0",
     "dts-bundle-generator": "^9.5.1",
     "eslint": "^10.2.0",
