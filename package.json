@@ -78,7 +78,7 @@
     "@typescript-eslint/eslint-plugin": "^8.59.0",
     "@typescript-eslint/parser": "^8.58.1",
     "@vitest/coverage-v8": "4.1.5",
-    "@vitest/ui": "4.1.4",
+    "@vitest/ui": "4.1.5",
     "address": "^2.0.3",
     "autoprefixer": "^10.5.0",
     "benchmark": "^2.1.4",
