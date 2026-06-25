@@ -80,7 +80,7 @@
     "@vitest/coverage-v8": "4.1.9",
     "@vitest/ui": "4.1.9",
     "address": "^2.0.3",
-    "autoprefixer": "^10.5.1",
+    "autoprefixer": "^10.5.2",
     "benchmark": "^2.1.4",
     "canvas": "^3.2.3",
     "cspell": "^10.0.1",
