@@ -18,7 +18,7 @@
   "type": "module",
   "dependencies": {
     "@mapbox/geojson-rewind": "^0.5.2",
-    "@mapbox/jsonlint-lines-primitives": "^2.0.2",
+    "@mapbox/jsonlint-lines-primitives": "^2.0.3",
     "@mapbox/point-geometry": "^1.1.0",
     "@mapbox/tiny-sdf": "^2.2.0",
     "@mapbox/unitbezier": "^1.0.0",
