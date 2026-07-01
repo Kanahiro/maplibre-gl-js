@@ -119,7 +119,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.7",
     "rollup": "^4.62.2",
-    "rollup-plugin-sourcemaps2": "^0.5.7",
+    "rollup-plugin-sourcemaps2": "^0.5.8",
     "rw": "^1.3.3",
     "semver": "^7.8.5",
     "sharp": "^0.35.3",
