@@ -9,7 +9,13 @@ import {GEOJSON_TILE_LAYER_NAME} from '../../data/feature_index.ts';
 
 export function getCustomLayerTiles(tileManager: TileManager | undefined, sourceLayer: string): CustomRenderMethodInput['tiles'] {
     if (!tileManager) return [];
-    const sourceType = tileManager.getSource()?.type || '';
+    const sourceType = tileManager.getSource().type;
+    if (sourceType !== 'vector' && sourceType !== 'geojson' && sourceType !== 'raster') {
+        throw new Error(`Custom layers do not support source type "${sourceType}"`);
+    }
+    if (sourceType === 'vector' && !sourceLayer) {
+        throw new Error('Custom layers using a vector source must specify "source-layer"');
+    }
 
     return tileManager.getVisibleCoordinates().flatMap((tileID) => {
         const tile = tileManager.getTile(tileID);

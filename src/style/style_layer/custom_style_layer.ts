@@ -276,11 +276,11 @@ export interface CustomLayerInterface {
      */
     type: 'custom';
     /**
-     * The ID of a vector, GeoJSON, raster, or raster DEM source whose renderable tiles are made available to this layer.
+     * The ID of a vector, GeoJSON, or raster source whose renderable tiles are made available to this layer.
      */
     source?: string;
     /**
-     * The source layer to read from a vector tile source. Ignored for GeoJSON sources.
+     * The source layer to read from a vector tile source. Required for vector sources and ignored for GeoJSON sources.
      */
     'source-layer'?: string;
     /**

@@ -1,5 +1,6 @@
 ## main
 ### ✨ Features and improvements
+- Allow custom layers to access visible vector, GeoJSON, and raster source tiles ([#7913](https://github.com/maplibre/maplibre-gl-js/pull/7913)) (by [@Kanahiro](https://github.com/Kanahiro))
 - Improve terrain render-to-texture preparation performance by skipping sources that are not rendered to terrain textures ([#7863](https://github.com/maplibre/maplibre-gl-js/pull/7863)) (by [@DoFabien](https://github.com/DoFabien))
 - Add `Map.setMissingStyleImageResolver` for resolving missing style images with sync or async callbacks ([#7850](https://github.com/maplibre/maplibre-gl-js/pull/7850)) (by [@birkskyum](https://github.com/birkskyum))
 - ⚠️ Stop allowing `styleimagemissing` listeners to resolve the current image request; use `Map.setMissingStyleImageResolver` instead ([#7892](https://github.com/maplibre/maplibre-gl-js/issues/7892)) (by [@birkskyum](https://github.com/birkskyum))
