@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Use vector tile data in a custom layer</title>
+    <meta property="og:description" content="Bind a vector source to a custom layer and turn its visible tile features into instanced 3D models." />
+    <meta property="og:category" content="3D Models & Buildings" />
+    <meta property="og:created" content="2026-07-12" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../../dist/maplibre-gl.css" />
+
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+    </style>
+</head>
+<body>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+        }
+    }
+</script>
+<div id="map"></div>
+
+<script type="module">
+    import * as maplibregl from '../../dist/maplibre-gl-dev.mjs';
+    import * as THREE from 'three';
+    import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://demotiles.maplibre.org/style.json',
+        center: [12, 48],
+        zoom: 5,
+        pitch: 55,
+        bearing: -15,
+        canvasContextAttributes: {antialias: true}
+    });
+
+    const modelLayer = {
+        id: 'custom-country-models',
+        type: 'custom',
+        renderingMode: '3d',
+        source: 'maplibre',
+        'source-layer': 'centroids',
+        tileModels: new Map(),
+
+        onAdd(map, gl) {
+            this.map = map;
+            this.camera = new THREE.Camera();
+            this.scene = new THREE.Scene();
+
+            this.scene.add(new THREE.HemisphereLight(0xdff4ff, 0x293241, 2.5));
+            const sunlight = new THREE.DirectionalLight(0xffffff, 3);
+            sunlight.position.set(-1, -2, 3);
+            this.scene.add(sunlight);
+
+            // This is the same model used by the "Add a 3D model using three.js" example.
+            new GLTFLoader().load(
+                'https://maplibre.org/maplibre-gl-js/docs/assets/34M_17/34M_17.gltf',
+                (gltf) => {
+                    gltf.scene.updateMatrixWorld(true);
+                    this.modelParts = [];
+                    this.oddMaterials = new Map();
+                    gltf.scene.traverse((object) => {
+                        if (!object.isMesh) return;
+                        if (!this.oddMaterials.has(object.material)) {
+                            const oddMaterial = object.material.clone();
+                            oddMaterial.color.set(0xffa62b);
+                            this.oddMaterials.set(object.material, oddMaterial);
+                        }
+                        this.modelParts.push({
+                            geometry: object.geometry,
+                            evenMaterial: object.material,
+                            oddMaterial: this.oddMaterials.get(object.material),
+                            matrix: object.matrixWorld.clone()
+                        });
+                    });
+                    this.map.triggerRepaint();
+                }
+            );
+
+            this.renderer = new THREE.WebGLRenderer({
+                canvas: map.getCanvas(),
+                context: gl,
+                antialias: true
+            });
+            this.renderer.autoClear = false;
+        },
+
+        createTileModels(features, tileID) {
+            const group = new THREE.Group();
+            const rotation = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+            const tileCount = 2 ** tileID.canonical.z;
+            const matrices = {even: [], odd: []};
+
+            for (let index = 0; index < features.length; index++) {
+                const feature = features.feature(index);
+                if (feature.type !== 1) continue;
+                const countryName = String(feature.properties.NAME ?? '');
+                const parity = countryName.length % 2 === 0 ? 'even' : 'odd';
+
+                for (const pointGeometry of feature.loadGeometry()) {
+                    const point = pointGeometry[0];
+                    const mercator = new maplibregl.MercatorCoordinate(
+                        (tileID.canonical.x + point.x / feature.extent) / tileCount + (tileID.wrap ?? 0),
+                        (tileID.canonical.y + point.y / feature.extent) / tileCount
+                    );
+                    // Enlarge the real-world model so it remains legible at this continental zoom.
+                    const scale = mercator.meterInMercatorCoordinateUnits() * 2500;
+                    const matrix = new THREE.Matrix4()
+                        .makeTranslation(mercator.x, mercator.y, mercator.z)
+                        .scale(new THREE.Vector3(scale, -scale, scale))
+                        .multiply(rotation);
+                    matrices[parity].push(matrix);
+                }
+            }
+
+            for (const parity of ['even', 'odd']) {
+                if (matrices[parity].length === 0) continue;
+                for (const part of this.modelParts) {
+                    const material = parity === 'even' ? part.evenMaterial : part.oddMaterial;
+                    const mesh = new THREE.InstancedMesh(part.geometry, material, matrices[parity].length);
+                    for (let index = 0; index < matrices[parity].length; index++) {
+                        mesh.setMatrixAt(index, matrices[parity][index].clone().multiply(part.matrix));
+                    }
+                    mesh.instanceMatrix.needsUpdate = true;
+                    group.add(mesh);
+                }
+            }
+
+            return group;
+        },
+
+        render(_gl, {defaultProjectionData, tiles}) {
+            if (!this.modelParts) return;
+
+            const visibleFeatureLayers = new Set();
+
+            for (const tile of tiles) {
+                const {features} = tile;
+                visibleFeatureLayers.add(features);
+
+                let group = this.tileModels.get(features);
+                if (!group) {
+                    group = this.createTileModels(features, tile.tileID);
+                    this.tileModels.set(features, group);
+                    this.scene.add(group);
+                }
+            }
+
+            for (const [features, group] of this.tileModels) {
+                if (visibleFeatureLayers.has(features)) continue;
+                this.scene.remove(group);
+                this.tileModels.delete(features);
+            }
+
+            this.camera.projectionMatrix.fromArray(defaultProjectionData.mainMatrix);
+            this.renderer.resetState();
+            this.renderer.render(this.scene, this.camera);
+
+        },
+
+        onRemove(_map, gl) {
+            for (const material of this.oddMaterials?.values() ?? []) material.dispose();
+            this.renderer.dispose();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        }
+    };
+
+    map.on('load', () => {
+        map.addLayer(modelLayer);
+    });
+</script>
+</body>
+</html>
