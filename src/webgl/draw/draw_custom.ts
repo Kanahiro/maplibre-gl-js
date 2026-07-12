@@ -9,15 +9,32 @@ import {GEOJSON_TILE_LAYER_NAME} from '../../data/feature_index.ts';
 
 export function getCustomLayerTiles(tileManager: TileManager | undefined, sourceLayer: string): CustomRenderMethodInput['tiles'] {
     if (!tileManager) return [];
+    const sourceType = tileManager.getSource()?.type || '';
 
     return tileManager.getVisibleCoordinates().flatMap((tileID) => {
         const tile = tileManager.getTile(tileID);
         if (!tile) return [];
-        const featureIndex = tile.latestFeatureIndex;
-        if (!featureIndex?.rawTileData) return [];
-        const layers = featureIndex.loadVTLayers();
-        const features = layers[GEOJSON_TILE_LAYER_NAME] || layers[sourceLayer];
-        if (!features) return [];
+
+        let data: CustomRenderMethodInput['tiles'][number]['data'];
+        if (sourceType === 'raster') {
+            if (!tile.texture) return [];
+            const texture = tile.texture;
+            data = {
+                type: 'raster',
+                size: [...texture.size] as [number, number],
+                bindTexture: () => {
+                    const {gl} = texture.context;
+                    texture.bind(gl.LINEAR, gl.CLAMP_TO_EDGE, gl.LINEAR_MIPMAP_NEAREST);
+                }
+            };
+        } else {
+            const featureIndex = tile.latestFeatureIndex;
+            if (!featureIndex?.rawTileData) return [];
+            const layers = featureIndex.loadVTLayers();
+            const features = layers[GEOJSON_TILE_LAYER_NAME] || layers[sourceLayer];
+            if (!features) return [];
+            data = {type: 'vector', features};
+        }
 
         return [{
             tileID: {
@@ -28,7 +45,7 @@ export function getCustomLayerTiles(tileManager: TileManager | undefined, source
                     y: tileID.canonical.y,
                 }
             },
-            features
+            data
         }];
     });
 }

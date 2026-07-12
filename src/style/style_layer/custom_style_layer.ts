@@ -53,12 +53,22 @@ export type CustomLayerProjectionDataParams = {
 type CustomLayerTile = {
     /** The tile coordinates. */
     tileID: UnwrappedTileIDLiteral;
-    /** Features in the configured source layer, using tile-local coordinates. */
-    features: {
-        /** Number of features. */
-        length: number;
-        /** Returns a feature by index. */
-        feature: (index: number) => VectorTileFeatureLike;
+    /** The source data for this tile. */
+    data: {
+        type: 'vector';
+        /** Features in the configured source layer, using tile-local coordinates. */
+        features: {
+            /** Number of features. */
+            length: number;
+            /** Returns a feature by index. */
+            feature: (index: number) => VectorTileFeatureLike;
+        };
+    } | {
+        type: 'raster';
+        /** Texture dimensions in pixels. */
+        size: [number, number];
+        /** Binds the raster texture to the active texture unit. */
+        bindTexture: () => void;
     };
 };
 
@@ -266,7 +276,7 @@ export interface CustomLayerInterface {
      */
     type: 'custom';
     /**
-     * The ID of a vector or GeoJSON source whose renderable tiles are made available to this layer.
+     * The ID of a vector, GeoJSON, raster, or raster DEM source whose renderable tiles are made available to this layer.
      */
     source?: string;
     /**

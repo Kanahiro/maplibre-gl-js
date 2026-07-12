@@ -141,7 +141,8 @@
             const visibleFeatureLayers = new Set();
 
             for (const tile of tiles) {
-                const {features} = tile;
+                if (tile.data.type !== 'vector') continue;
+                const {features} = tile.data;
                 visibleFeatureLayers.add(features);
 
                 let group = this.tileModels.get(features);

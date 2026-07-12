@@ -89,7 +89,7 @@ describe('drawCustom', () => {
         expect(result.args.fov).toBe(mockPainter.transform.fov * Math.PI / 180);
         expect(result.args.tiles).toHaveLength(1);
         expect(result.args.tiles[0].tileID).toEqual({wrap: 0, canonical: {z: 1, x: 0, y: 0}});
-        expect(result.args.tiles[0].features).toBe(features);
+        expect(result.args.tiles[0].data).toEqual({type: 'vector', features});
         expect(loadVTLayers).toHaveBeenCalledOnce();
         expect(result.args.modelViewProjectionMatrix).toEqual(mockPainter.transform.modelViewProjectionMatrix);
         expect(result.args.projectionMatrix).toEqual(mockPainter.transform.projectionMatrix);
@@ -159,7 +159,7 @@ describe('drawCustom', () => {
         const tiles = getCustomLayerTiles(tileManager, 'ignored');
 
         expect(tiles).toHaveLength(1);
-        expect(tiles[0].features).toBe(geoJSONFeatures);
+        expect(tiles[0].data).toEqual({type: 'vector', features: geoJSONFeatures});
     });
 
     test('omits a tile when the configured vector source layer is missing', () => {
@@ -178,6 +178,41 @@ describe('drawCustom', () => {
 
     test('passes an empty tile list to a source-less custom layer', () => {
         expect(getCustomLayerTiles(undefined, '')).toEqual([]);
+    });
+
+    test('provides a bindable texture for raster tiles', () => {
+        const tileID = new OverscaledTileID(1, 0, 1, 0, 0);
+        const tile = new Tile(tileID, 256);
+        const gl = {
+            LINEAR: 1,
+            CLAMP_TO_EDGE: 2,
+            LINEAR_MIPMAP_NEAREST: 3
+        };
+        const bind = vi.fn();
+        tile.texture = {size: [512, 512], context: {gl}, bind};
+        const tileManager = new TileManager(null, null, null);
+        (tileManager.getSource as Mock).mockReturnValue({type: 'raster'});
+        (tileManager.getVisibleCoordinates as Mock).mockReturnValue([tileID]);
+        (tileManager.getTile as Mock).mockReturnValue(tile);
+
+        const tiles = getCustomLayerTiles(tileManager, '');
+
+        expect(tiles).toHaveLength(1);
+        expect(tiles[0].data.type).toBe('raster');
+        if (tiles[0].data.type !== 'raster') throw new Error('Expected raster tile data');
+        expect(tiles[0].data.size).toEqual([512, 512]);
+        tiles[0].data.bindTexture();
+        expect(bind).toHaveBeenCalledWith(gl.LINEAR, gl.CLAMP_TO_EDGE, gl.LINEAR_MIPMAP_NEAREST);
+    });
+
+    test('omits raster tiles until their texture is available', () => {
+        const tileID = new OverscaledTileID(1, 0, 1, 0, 0);
+        const tileManager = new TileManager(null, null, null);
+        (tileManager.getSource as Mock).mockReturnValue({type: 'raster'});
+        (tileManager.getVisibleCoordinates as Mock).mockReturnValue([tileID]);
+        (tileManager.getTile as Mock).mockReturnValue(new Tile(tileID, 256));
+
+        expect(getCustomLayerTiles(tileManager, '')).toEqual([]);
     });
 
     test('preserves visible tile order and world wraps', () => {
