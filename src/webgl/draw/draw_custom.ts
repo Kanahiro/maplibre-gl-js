@@ -7,14 +7,11 @@ import type {CustomLayerProjectionDataParams, CustomRenderMethodInput, CustomSty
 import {OverscaledTileID} from '../../tile/tile_id.ts';
 import {GEOJSON_TILE_LAYER_NAME} from '../../data/feature_index.ts';
 
-export function getCustomLayerTiles(tileManager: TileManager | undefined, sourceLayer: string): CustomRenderMethodInput['tiles'] {
+export function getCustomLayerTiles(tileManager: TileManager | undefined): CustomRenderMethodInput['tiles'] {
     if (!tileManager) return [];
     const sourceType = tileManager.getSource().type;
     if (sourceType !== 'vector' && sourceType !== 'geojson' && sourceType !== 'raster') {
         throw new Error(`Custom layers do not support source type "${sourceType}"`);
-    }
-    if (sourceType === 'vector' && !sourceLayer) {
-        throw new Error('Custom layers using a vector source must specify "source-layer"');
     }
 
     return tileManager.getVisibleCoordinates().flatMap((tileID) => {
@@ -37,9 +34,13 @@ export function getCustomLayerTiles(tileManager: TileManager | undefined, source
             const featureIndex = tile.latestFeatureIndex;
             if (!featureIndex?.rawTileData) return [];
             const layers = featureIndex.loadVTLayers();
-            const features = layers[GEOJSON_TILE_LAYER_NAME] || layers[sourceLayer];
-            if (!features) return [];
-            data = {type: 'vector', features};
+            if (sourceType === 'geojson') {
+                const features = layers[GEOJSON_TILE_LAYER_NAME];
+                if (!features) return [];
+                data = {type: 'geojson', features};
+            } else {
+                data = {type: 'vector', layers};
+            }
         }
 
         return [{
@@ -67,7 +68,7 @@ export function drawCustom(painter: Painter, tileManager: TileManager | undefine
     const projectionData = transform.getProjectionDataForCustomLayer(isRenderingGlobe);
 
     const customLayerArgs: CustomRenderMethodInput = {
-        tiles: getCustomLayerTiles(tileManager, layer.sourceLayer || ''),
+        tiles: getCustomLayerTiles(tileManager),
         farZ: transform.farZ,
         nearZ: transform.nearZ,
         fov: transform.fov * Math.PI / 180, // fov converted to radians

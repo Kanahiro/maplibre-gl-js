@@ -15,16 +15,14 @@ describe('CustomStyleLayer', () => {
         expect(layer.getLayoutProperty('visibility')).toBe('none');
     });
 
-    test('binds a source and source layer', () => {
+    test('binds a source', () => {
         const layer = new CustomStyleLayer({
             id: 'custom',
             type: 'custom',
             source: 'models',
-            'source-layer': 'buildings',
             render() {}
         }, {});
 
         expect(layer.source).toBe('models');
-        expect(layer.sourceLayer).toBe('buildings');
     });
 });

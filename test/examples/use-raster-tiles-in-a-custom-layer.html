@@ -73,10 +73,12 @@
                 void main() {
                     vec4 color = texture(u_image, v_texture_position);
                     float luminance = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
-                    vec3 shadows = vec3(0.04, 0.12, 0.28);
-                    vec3 highlights = vec3(1.0, 0.78, 0.34);
-                    vec3 duotone = mix(shadows, highlights, smoothstep(0.15, 0.9, luminance));
-                    fragColor = vec4(duotone, color.a);
+                    vec3 shadows = vec3(0.03, 0.10, 0.20);
+                    vec3 midtones = vec3(0.08, 0.55, 0.52);
+                    vec3 highlights = vec3(1.0, 0.91, 0.68);
+                    vec3 processed = mix(shadows, midtones, smoothstep(0.25, 0.65, luminance));
+                    processed = mix(processed, highlights, smoothstep(0.65, 0.95, luminance));
+                    fragColor = vec4(processed, color.a);
                 }
             `);
             gl.compileShader(fragmentShader);

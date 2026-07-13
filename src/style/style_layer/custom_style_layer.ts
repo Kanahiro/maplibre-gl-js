@@ -49,29 +49,6 @@ export type CustomLayerProjectionDataParams = {
     applyGlobeMatrix?: boolean;
 };
 
-/** A visible tile from the custom layer's source. */
-type CustomLayerTile = {
-    /** The tile coordinates. */
-    tileID: UnwrappedTileIDLiteral;
-    /** The source data for this tile. */
-    data: {
-        type: 'vector';
-        /** Features in the configured source layer, using tile-local coordinates. */
-        features: {
-            /** Number of features. */
-            length: number;
-            /** Returns a feature by index. */
-            feature: (index: number) => VectorTileFeatureLike;
-        };
-    } | {
-        type: 'raster';
-        /** Texture dimensions in pixels. */
-        size: [number, number];
-        /** Binds the raster texture to the active texture unit. */
-        bindTexture: () => void;
-    };
-};
-
 /**
 * Input arguments exposed by custom render function.
 */
@@ -79,7 +56,36 @@ export type CustomRenderMethodInput = {
     /**
      * Renderable tiles from the custom layer's source. This is empty when the layer has no source.
      */
-    tiles: readonly CustomLayerTile[];
+    tiles: ReadonlyArray<{
+        /** The tile coordinates. */
+        tileID: UnwrappedTileIDLiteral;
+        /** The source data for this tile. */
+        data: {
+            type: 'vector';
+            /** Source layers keyed by name. */
+            layers: Record<string, {
+                /** Number of features. */
+                length: number;
+                /** Returns a feature by index. */
+                feature: (index: number) => VectorTileFeatureLike;
+            }>;
+        } | {
+            type: 'geojson';
+            /** Features using tile-local coordinates. */
+            features: {
+                /** Number of features. */
+                length: number;
+                /** Returns a feature by index. */
+                feature: (index: number) => VectorTileFeatureLike;
+            };
+        } | {
+            type: 'raster';
+            /** Texture dimensions in pixels. */
+            size: [number, number];
+            /** Binds the raster texture to the active texture unit. */
+            bindTexture: () => void;
+        };
+    }>;
     /**
      * This value represents the distance from the camera to the far clipping plane.
      * It is used in the calculation of the projection matrix to determine which objects are visible.
@@ -280,10 +286,6 @@ export interface CustomLayerInterface {
      */
     source?: string;
     /**
-     * The source layer to read from a vector tile source. Required for vector sources and ignored for GeoJSON sources.
-     */
-    'source-layer'?: string;
-    /**
      * Either `"2d"` or `"3d"`. Defaults to `"2d"`.
      */
     renderingMode?: '2d' | '3d';
@@ -365,7 +367,6 @@ export class CustomStyleLayer extends StyleLayer {
         super(implementation, {}, globalState);
         this.implementation = implementation;
         this.source = implementation.source;
-        this.sourceLayer = implementation['source-layer'];
     }
 
     is3D(): boolean {

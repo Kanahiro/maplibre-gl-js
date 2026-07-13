@@ -754,7 +754,6 @@ describe('Style.update', () => {
             id: 'models',
             type: 'custom',
             source: 'models',
-            'source-layer': 'points',
             render() {}
         });
 
