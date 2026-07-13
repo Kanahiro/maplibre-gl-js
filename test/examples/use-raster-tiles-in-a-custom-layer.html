@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <title>Use raster tiles in a custom layer</title>
-    <meta property="og:description" content="Access raster tile textures from a custom layer." />
+    <meta property="og:description" content="Use raster tile textures on 3D objects without copying them." />
     <meta property="og:category" content="Raster & Imagery" />
     <meta property="og:created" content="2026-07-13" />
     <meta charset="utf-8">
@@ -19,8 +19,6 @@
 <script type="module">
     import * as maplibregl from '../../dist/maplibre-gl-dev.mjs';
 
-    const EXTENT = 8192;
-
     const map = new maplibregl.Map({
         container: 'map',
         style: {
@@ -34,31 +32,56 @@
                 }
             },
             layers: [{
-                id: 'background',
-                type: 'background',
-                paint: {'background-color': '#d8f2ff'}
+                id: 'osm',
+                type: 'raster',
+                source: 'raster-tiles'
             }]
         },
         center: [7.5, 48],
-        zoom: 4
+        zoom: 4,
+        pitch: 40,
+        bearing: -20,
+        canvasContextAttributes: {antialias: true}
     });
 
     const rasterLayer = {
         id: 'custom-raster',
         type: 'custom',
         source: 'raster-tiles',
+        renderingMode: '3d',
 
         onAdd(_map, gl) {
             const vertexShader = gl.createShader(gl.VERTEX_SHADER);
             gl.shaderSource(vertexShader, `#version 300 es
                 uniform mat4 u_matrix;
-                in vec2 a_position;
-                in vec2 a_texture_position;
+                uniform vec2 u_center;
+                uniform float u_size;
                 out vec2 v_texture_position;
+                out float v_shade;
 
+                const vec3 corners[8] = vec3[8](
+                    vec3(-0.5, -0.5, 0.0), vec3(0.5, -0.5, 0.0),
+                    vec3(0.5, 0.5, 0.0), vec3(-0.5, 0.5, 0.0),
+                    vec3(-0.5, -0.5, 1.0), vec3(0.5, -0.5, 1.0),
+                    vec3(0.5, 0.5, 1.0), vec3(-0.5, 0.5, 1.0)
+                );
+                const int indices[36] = int[36](
+                    0, 2, 1, 0, 3, 2,
+                    4, 5, 6, 4, 6, 7,
+                    0, 1, 5, 0, 5, 4,
+                    1, 2, 6, 1, 6, 5,
+                    2, 3, 7, 2, 7, 6,
+                    3, 0, 4, 3, 4, 7
+                );
                 void main() {
-                    gl_Position = u_matrix * vec4(a_position, 0.0, 1.0);
-                    v_texture_position = a_texture_position;
+                    vec3 position = corners[indices[gl_VertexID]];
+                    mat2 rotation = mat2(0.707, 0.707, -0.707, 0.707);
+                    vec2 xy = u_center + rotation * position.xy * u_size;
+                    gl_Position = u_matrix * vec4(xy, position.z * u_size, 1.0);
+                    int face = gl_VertexID / 6;
+                    v_texture_position = face < 2 ? position.xy + 0.5 :
+                        vec2((face == 2 || face == 4 ? position.x : position.y) + 0.5, 1.0 - position.z);
+                    v_shade = face == 1 ? 1.0 : (face == 3 || face == 4 ? 0.72 : 0.85);
                 }
             `);
             gl.compileShader(vertexShader);
@@ -68,17 +91,12 @@
                 precision highp float;
                 uniform sampler2D u_image;
                 in vec2 v_texture_position;
+                in float v_shade;
                 out vec4 fragColor;
 
                 void main() {
                     vec4 color = texture(u_image, v_texture_position);
-                    float luminance = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
-                    vec3 shadows = vec3(0.03, 0.10, 0.20);
-                    vec3 midtones = vec3(0.08, 0.55, 0.52);
-                    vec3 highlights = vec3(1.0, 0.91, 0.68);
-                    vec3 processed = mix(shadows, midtones, smoothstep(0.25, 0.65, luminance));
-                    processed = mix(processed, highlights, smoothstep(0.65, 0.95, luminance));
-                    fragColor = vec4(processed, color.a);
+                    fragColor = vec4(color.rgb * v_shade, color.a);
                 }
             `);
             gl.compileShader(fragmentShader);
@@ -91,41 +109,37 @@
             gl.deleteShader(fragmentShader);
 
             this.matrixLocation = gl.getUniformLocation(this.program, 'u_matrix');
+            this.centerLocation = gl.getUniformLocation(this.program, 'u_center');
+            this.sizeLocation = gl.getUniformLocation(this.program, 'u_size');
             this.imageLocation = gl.getUniformLocation(this.program, 'u_image');
-            this.positionLocation = gl.getAttribLocation(this.program, 'a_position');
-            this.texturePositionLocation = gl.getAttribLocation(this.program, 'a_texture_position');
-
-            this.buffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                0,      0,      0, 0,
-                0,      EXTENT, 0, 1,
-                EXTENT, 0,      1, 0,
-                EXTENT, EXTENT, 1, 1
-            ]), gl.STATIC_DRAW);
         },
 
-        render(gl, {tiles, getProjectionData}) {
-            gl.useProgram(this.program);
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-            gl.enableVertexAttribArray(this.positionLocation);
-            gl.vertexAttribPointer(this.positionLocation, 2, gl.FLOAT, false, 16, 0);
-            gl.enableVertexAttribArray(this.texturePositionLocation);
-            gl.vertexAttribPointer(this.texturePositionLocation, 2, gl.FLOAT, false, 16, 8);
-            gl.uniform1i(this.imageLocation, 0);
+        render(gl, {tiles, defaultProjectionData}) {
+            const rasterTiles = tiles.filter((tile) => tile.data.type === 'raster');
+            if (rasterTiles.length === 0) return;
+            const zoom = Math.max(...rasterTiles.map((tile) => tile.tileID.canonical.z));
 
-            for (const tile of tiles) {
-                if (tile.data.type !== 'raster') continue;
-                gl.activeTexture(gl.TEXTURE0);
+            gl.useProgram(this.program);
+            gl.uniformMatrix4fv(this.matrixLocation, false, defaultProjectionData.mainMatrix);
+            gl.uniform1i(this.imageLocation, 0);
+            gl.activeTexture(gl.TEXTURE0);
+
+            for (const tile of rasterTiles) {
+                if (tile.tileID.canonical.z !== zoom) continue;
                 tile.data.bindTexture();
-                const projectionData = getProjectionData({tileID: tile.tileID});
-                gl.uniformMatrix4fv(this.matrixLocation, false, projectionData.mainMatrix);
-                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                const {canonical, wrap = 0} = tile.tileID;
+                const tileSize = 1 / (2 ** canonical.z);
+                gl.uniform2f(
+                    this.centerLocation,
+                    (canonical.x + 0.5) * tileSize + wrap,
+                    (canonical.y + 0.5) * tileSize
+                );
+                gl.uniform1f(this.sizeLocation, tileSize * 0.2);
+                gl.drawArrays(gl.TRIANGLES, 0, 36);
             }
         },
 
         onRemove(_map, gl) {
-            gl.deleteBuffer(this.buffer);
             gl.deleteProgram(this.program);
         }
     };
