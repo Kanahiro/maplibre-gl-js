@@ -194,44 +194,9 @@ describe('getCustomLayerTiles', () => {
 
     test('rejects unsupported source types', () => {
         const tileManager = new TileManager(null, null, null);
-        (tileManager.getSource as Mock).mockReturnValue({type: 'raster-dem'});
-
-        expect(() => getCustomLayerTiles(tileManager)).toThrow('Custom layers do not support source type "raster-dem"');
-    });
-
-    test('provides a bindable texture for raster tiles', () => {
-        const tileID = new OverscaledTileID(1, 0, 1, 0, 0);
-        const tile = new Tile(tileID, 256);
-        const gl = {
-            LINEAR: 1,
-            CLAMP_TO_EDGE: 2,
-            LINEAR_MIPMAP_NEAREST: 3
-        };
-        const bind = vi.fn();
-        tile.texture = {size: [512, 512], context: {gl}, bind};
-        const tileManager = new TileManager(null, null, null);
         (tileManager.getSource as Mock).mockReturnValue({type: 'raster'});
-        (tileManager.getVisibleCoordinates as Mock).mockReturnValue([tileID]);
-        (tileManager.getTile as Mock).mockReturnValue(tile);
 
-        const tiles = getCustomLayerTiles(tileManager);
-
-        expect(tiles).toHaveLength(1);
-        expect(tiles[0].data.type).toBe('raster');
-        if (tiles[0].data.type !== 'raster') throw new Error('Expected raster tile data');
-        expect(tiles[0].data.size).toEqual([512, 512]);
-        tiles[0].data.bindTexture();
-        expect(bind).toHaveBeenCalledWith(gl.LINEAR, gl.CLAMP_TO_EDGE, gl.LINEAR_MIPMAP_NEAREST);
-    });
-
-    test('omits raster tiles until their texture is available', () => {
-        const tileID = new OverscaledTileID(1, 0, 1, 0, 0);
-        const tileManager = new TileManager(null, null, null);
-        (tileManager.getSource as Mock).mockReturnValue({type: 'raster'});
-        (tileManager.getVisibleCoordinates as Mock).mockReturnValue([tileID]);
-        (tileManager.getTile as Mock).mockReturnValue(new Tile(tileID, 256));
-
-        expect(getCustomLayerTiles(tileManager)).toEqual([]);
+        expect(() => getCustomLayerTiles(tileManager)).toThrow('Custom layers do not support source type "raster"');
     });
 
     test('preserves visible tile order and world wraps', () => {

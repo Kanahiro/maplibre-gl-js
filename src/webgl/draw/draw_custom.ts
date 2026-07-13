@@ -10,7 +10,7 @@ import {GEOJSON_TILE_LAYER_NAME} from '../../data/feature_index.ts';
 export function getCustomLayerTiles(tileManager: TileManager | undefined): CustomRenderMethodInput['tiles'] {
     if (!tileManager) return [];
     const sourceType = tileManager.getSource().type;
-    if (sourceType !== 'vector' && sourceType !== 'geojson' && sourceType !== 'raster') {
+    if (sourceType !== 'vector' && sourceType !== 'geojson') {
         throw new Error(`Custom layers do not support source type "${sourceType}"`);
     }
 
@@ -18,29 +18,16 @@ export function getCustomLayerTiles(tileManager: TileManager | undefined): Custo
         const tile = tileManager.getTile(tileID);
         if (!tile) return [];
 
+        const featureIndex = tile.latestFeatureIndex;
+        if (!featureIndex?.rawTileData) return [];
+        const layers = featureIndex.loadVTLayers();
         let data: CustomRenderMethodInput['tiles'][number]['data'];
-        if (sourceType === 'raster') {
-            if (!tile.texture) return [];
-            const texture = tile.texture;
-            data = {
-                type: 'raster',
-                size: [...texture.size] as [number, number],
-                bindTexture: () => {
-                    const {gl} = texture.context;
-                    texture.bind(gl.LINEAR, gl.CLAMP_TO_EDGE, gl.LINEAR_MIPMAP_NEAREST);
-                }
-            };
+        if (sourceType === 'geojson') {
+            const features = layers[GEOJSON_TILE_LAYER_NAME];
+            if (!features) return [];
+            data = {type: 'geojson', features};
         } else {
-            const featureIndex = tile.latestFeatureIndex;
-            if (!featureIndex?.rawTileData) return [];
-            const layers = featureIndex.loadVTLayers();
-            if (sourceType === 'geojson') {
-                const features = layers[GEOJSON_TILE_LAYER_NAME];
-                if (!features) return [];
-                data = {type: 'geojson', features};
-            } else {
-                data = {type: 'vector', layers};
-            }
+            data = {type: 'vector', layers};
         }
 
         return [{

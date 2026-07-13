@@ -78,12 +78,6 @@ export type CustomRenderMethodInput = {
                 /** Returns a feature by index. */
                 feature: (index: number) => VectorTileFeatureLike;
             };
-        } | {
-            type: 'raster';
-            /** Texture dimensions in pixels. */
-            size: [number, number];
-            /** Binds the raster texture to the active texture unit. */
-            bindTexture: () => void;
         };
     }>;
     /**
@@ -282,7 +276,7 @@ export interface CustomLayerInterface {
      */
     type: 'custom';
     /**
-     * The ID of a vector, GeoJSON, or raster source whose renderable tiles are made available to this layer.
+     * The ID of a vector or GeoJSON source whose renderable tiles are made available to this layer.
      */
     source?: string;
     /**
