@@ -73,6 +73,7 @@ describe('drawCustom', () => {
             id: 'custom-layer',
             type: 'custom',
             source: 'models',
+            'source-layer': 'buildings',
             render(gl, args) {
                 result = {
                     gl,
@@ -89,7 +90,7 @@ describe('drawCustom', () => {
         expect(result.args.fov).toBe(mockPainter.transform.fov * Math.PI / 180);
         expect(result.args.tiles).toHaveLength(1);
         expect(result.args.tiles[0].tileID).toEqual({wrap: 0, canonical: {z: 1, x: 0, y: 0}});
-        expect(result.args.tiles[0].data).toEqual({type: 'vector', layers: {buildings: features}});
+        expect(result.args.tiles[0].data).toEqual({type: 'vector', features});
         expect(loadVTLayers).toHaveBeenCalledOnce();
         expect(result.args.modelViewProjectionMatrix).toEqual(mockPainter.transform.modelViewProjectionMatrix);
         expect(result.args.projectionMatrix).toEqual(mockPainter.transform.projectionMatrix);
@@ -130,7 +131,7 @@ describe('getCustomLayerTiles', () => {
         (tileManager.getVisibleCoordinates as Mock).mockReturnValue([tileID]);
         (tileManager.getTile as Mock).mockReturnValue(undefined);
 
-        expect(getCustomLayerTiles(tileManager)).toEqual([]);
+        expect(getCustomLayerTiles(tileManager, 'buildings')).toEqual([]);
     });
 
     test('omits a tile while it has no decoded source layer', () => {
@@ -142,7 +143,7 @@ describe('getCustomLayerTiles', () => {
         (tileManager.getVisibleCoordinates as Mock).mockReturnValue([tileID]);
         (tileManager.getTile as Mock).mockReturnValue(tile);
 
-        expect(getCustomLayerTiles(tileManager)).toEqual([]);
+        expect(getCustomLayerTiles(tileManager, 'buildings')).toEqual([]);
     });
 
     test('provides GeoJSON features', () => {
@@ -161,19 +162,20 @@ describe('getCustomLayerTiles', () => {
         (tileManager.getVisibleCoordinates as Mock).mockReturnValue([tileID]);
         (tileManager.getTile as Mock).mockReturnValue(tile);
 
-        const tiles = getCustomLayerTiles(tileManager);
+        const tiles = getCustomLayerTiles(tileManager, '');
 
         expect(tiles).toHaveLength(1);
-        expect(tiles[0].data).toEqual({type: 'geojson', features: geoJSONFeatures});
+        expect(tiles[0].data).toEqual({type: 'vector', features: geoJSONFeatures});
     });
 
-    test('provides all vector source layers', () => {
+    test('provides the configured vector source layer', () => {
         const tileID = new OverscaledTileID(1, 0, 1, 0, 0);
         const tile = new Tile(tileID, 256);
+        const buildings = {length: 1, feature: vi.fn()};
         tile.latestFeatureIndex = {
             rawTileData: new ArrayBuffer(1),
             loadVTLayers: vi.fn().mockReturnValue({
-                buildings: {length: 1, feature: vi.fn()},
+                buildings,
                 roads: {length: 2, feature: vi.fn()}
             })
         } as any;
@@ -182,21 +184,26 @@ describe('getCustomLayerTiles', () => {
         (tileManager.getVisibleCoordinates as Mock).mockReturnValue([tileID]);
         (tileManager.getTile as Mock).mockReturnValue(tile);
 
-        const renderedTiles = getCustomLayerTiles(tileManager);
-        expect(renderedTiles[0].data.type).toBe('vector');
-        if (renderedTiles[0].data.type !== 'vector') throw new Error('Expected vector tile data');
-        expect(Object.keys(renderedTiles[0].data.layers)).toEqual(['buildings', 'roads']);
+        const renderedTiles = getCustomLayerTiles(tileManager, 'buildings');
+        expect(renderedTiles[0].data).toEqual({type: 'vector', features: buildings});
     });
 
     test('passes an empty tile list to a source-less custom layer', () => {
-        expect(getCustomLayerTiles(undefined)).toEqual([]);
+        expect(getCustomLayerTiles(undefined, '')).toEqual([]);
     });
 
     test('rejects unsupported source types', () => {
         const tileManager = new TileManager(null, null, null);
         (tileManager.getSource as Mock).mockReturnValue({type: 'raster'});
 
-        expect(() => getCustomLayerTiles(tileManager)).toThrow('Custom layers do not support source type "raster"');
+        expect(() => getCustomLayerTiles(tileManager, '')).toThrow('Custom layers do not support source type "raster"');
+    });
+
+    test('requires a source layer for vector sources', () => {
+        const tileManager = new TileManager(null, null, null);
+        (tileManager.getSource as Mock).mockReturnValue({type: 'vector'});
+
+        expect(() => getCustomLayerTiles(tileManager, '')).toThrow('Custom layers using a vector source must specify "source-layer"');
     });
 
     test('preserves visible tile order and world wraps', () => {
@@ -218,7 +225,7 @@ describe('getCustomLayerTiles', () => {
         (tileManager.getVisibleCoordinates as Mock).mockReturnValue(tileIDs);
         (tileManager.getTile as Mock).mockImplementation((tileID) => tiles.find((tile) => tile.tileID.wrap === tileID.wrap));
 
-        const renderedTiles = getCustomLayerTiles(tileManager);
+        const renderedTiles = getCustomLayerTiles(tileManager, 'points');
 
         expect(renderedTiles.map((tile) => tile.tileID)).toEqual([
             {wrap: -1, canonical: {z: 1, x: 0, y: 0}},

@@ -62,15 +62,6 @@ export type CustomRenderMethodInput = {
         /** The source data for this tile. */
         data: {
             type: 'vector';
-            /** Source layers keyed by name. */
-            layers: Record<string, {
-                /** Number of features. */
-                length: number;
-                /** Returns a feature by index. */
-                feature: (index: number) => VectorTileFeatureLike;
-            }>;
-        } | {
-            type: 'geojson';
             /** Features using tile-local coordinates. */
             features: {
                 /** Number of features. */
@@ -280,6 +271,10 @@ export interface CustomLayerInterface {
      */
     source?: string;
     /**
+     * The source layer to read from a vector tile source. Required for vector sources and must not be set for GeoJSON sources.
+     */
+    'source-layer'?: string;
+    /**
      * Either `"2d"` or `"3d"`. Defaults to `"2d"`.
      */
     renderingMode?: '2d' | '3d';
@@ -361,6 +356,7 @@ export class CustomStyleLayer extends StyleLayer {
         super(implementation, {}, globalState);
         this.implementation = implementation;
         this.source = implementation.source;
+        this.sourceLayer = implementation['source-layer'];
     }
 
     is3D(): boolean {

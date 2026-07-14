@@ -45,6 +45,7 @@
         type: 'custom',
         renderingMode: '3d',
         source: 'maplibre',
+        'source-layer': 'centroids',
         tileModels: new Map(),
 
         onAdd(map, gl) {
@@ -141,8 +142,7 @@
 
             for (const tile of tiles) {
                 if (tile.data.type !== 'vector') continue;
-                const features = tile.data.layers.centroids;
-                if (!features) continue;
+                const features = tile.data.features;
                 visibleFeatureLayers.add(features);
 
                 let group = this.tileModels.get(features);

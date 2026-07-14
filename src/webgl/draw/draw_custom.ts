@@ -7,11 +7,14 @@ import type {CustomLayerProjectionDataParams, CustomRenderMethodInput, CustomSty
 import {OverscaledTileID} from '../../tile/tile_id.ts';
 import {GEOJSON_TILE_LAYER_NAME} from '../../data/feature_index.ts';
 
-export function getCustomLayerTiles(tileManager: TileManager | undefined): CustomRenderMethodInput['tiles'] {
+export function getCustomLayerTiles(tileManager: TileManager | undefined, sourceLayer: string): CustomRenderMethodInput['tiles'] {
     if (!tileManager) return [];
     const sourceType = tileManager.getSource().type;
     if (sourceType !== 'vector' && sourceType !== 'geojson') {
         throw new Error(`Custom layers do not support source type "${sourceType}"`);
+    }
+    if (sourceType === 'vector' && !sourceLayer) {
+        throw new Error('Custom layers using a vector source must specify "source-layer"');
     }
 
     return tileManager.getVisibleCoordinates().flatMap((tileID) => {
@@ -21,14 +24,8 @@ export function getCustomLayerTiles(tileManager: TileManager | undefined): Custo
         const featureIndex = tile.latestFeatureIndex;
         if (!featureIndex?.rawTileData) return [];
         const layers = featureIndex.loadVTLayers();
-        let data: CustomRenderMethodInput['tiles'][number]['data'];
-        if (sourceType === 'geojson') {
-            const features = layers[GEOJSON_TILE_LAYER_NAME];
-            if (!features) return [];
-            data = {type: 'geojson', features};
-        } else {
-            data = {type: 'vector', layers};
-        }
+        const features = layers[sourceType === 'geojson' ? GEOJSON_TILE_LAYER_NAME : sourceLayer];
+        if (!features) return [];
 
         return [{
             tileID: {
@@ -39,7 +36,7 @@ export function getCustomLayerTiles(tileManager: TileManager | undefined): Custo
                     y: tileID.canonical.y,
                 }
             },
-            data
+            data: {type: 'vector', features}
         }];
     });
 }
@@ -55,7 +52,7 @@ export function drawCustom(painter: Painter, tileManager: TileManager | undefine
     const projectionData = transform.getProjectionDataForCustomLayer(isRenderingGlobe);
 
     const customLayerArgs: CustomRenderMethodInput = {
-        tiles: getCustomLayerTiles(tileManager),
+        tiles: getCustomLayerTiles(tileManager, layer.sourceLayer || ''),
         farZ: transform.farZ,
         nearZ: transform.nearZ,
         fov: transform.fov * Math.PI / 180, // fov converted to radians
