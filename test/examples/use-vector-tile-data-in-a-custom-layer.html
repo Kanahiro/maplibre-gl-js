@@ -165,10 +165,9 @@
 
         },
 
-        onRemove(_map, gl) {
+        onRemove() {
             for (const material of this.oddMaterials?.values() ?? []) material.dispose();
             this.renderer.dispose();
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         }
     };
 
