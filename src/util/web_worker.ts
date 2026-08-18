@@ -2,7 +2,6 @@ import {type AddProtocolAction, config} from './config.ts';
 import type {default as MaplibreWorker} from '../source/worker.ts';
 import type {WorkerSourceConstructor} from '../source/worker_source.ts';
 import type {GetResourceResponse, RequestParameters} from './ajax.ts';
-import {WORKER_READY_MESSAGE} from './worker_protocol.ts';
 
 export interface WorkerGlobalScopeInterface {
     registerWorkerSource: (sourceName: string, sourceConstructor: WorkerSourceConstructor) => void;
@@ -34,37 +33,29 @@ function defaultWorkerUrl(): string {
 }
 
 function createWorker(url: string, asModule: boolean): Worker {
+    let worker: Worker;
     if (asModule) {
         try {
-            return new Worker(url, {type: 'module'});
+            worker = new Worker(url, {type: 'module'});
         } catch (e) {
             console.warn('Module worker not supported, falling back to classic worker', e);
+            worker = new Worker(url);
         }
+    } else {
+        worker = new Worker(url);
     }
-    return new Worker(url);
-}
-
-function waitForWorkerReady(worker: Worker, url: string): Promise<Worker> {
-    return new Promise((resolve, reject) => {
-        const cleanup = () => {
-            worker.removeEventListener('message', onMessage);
-            worker.removeEventListener('error', onError);
-        };
-        const onMessage = (event: MessageEvent) => {
-            if (event.data !== WORKER_READY_MESSAGE) return;
-            cleanup();
-            resolve(worker);
-        };
-        const onError = (event: ErrorEvent) => {
-            cleanup();
-            worker.terminate();
-            const details = event.message ? `: ${event.message}` : '';
-            reject(new Error(`Failed to initialize MapLibre worker from ${JSON.stringify(url)}${details}`));
-        };
-
-        worker.addEventListener('message', onMessage);
-        worker.addEventListener('error', onError);
-    });
+    const onError = (event: ErrorEvent) => {
+        worker.removeEventListener('error', onError);
+        worker.removeEventListener('message', onMessage);
+        const details = event.message ? `: ${event.message}` : '';
+        console.error(`Failed to initialize MapLibre worker from ${JSON.stringify(url)}${details}`);
+    };
+    const onMessage = () => worker.removeEventListener('error', onError);
+    worker.addEventListener('error', onError);
+    // The first response proves that the worker loaded and initialized; later
+    // runtime failures are outside the scope of this startup diagnostic.
+    worker.addEventListener('message', onMessage, {once: true});
+    return worker;
 }
 
 async function fetchAsBlobUrl(url: string): Promise<string> {
@@ -87,13 +78,13 @@ export async function workerFactory(): Promise<Worker> {
     const asModule = url?.endsWith('.cjs') ? false : true;
 
     if (!isCrossOrigin(url)) {
-        return waitForWorkerReady(createWorker(url, asModule), url);
+        return createWorker(url, asModule);
     }
 
     if (asModule) {
         const blobUrl = importAsBlobUrl(url);
         try {
-            return await waitForWorkerReady(createWorker(blobUrl, asModule), url);
+            return createWorker(blobUrl, asModule);
         } finally {
             URL.revokeObjectURL(blobUrl);
         }
@@ -101,7 +92,7 @@ export async function workerFactory(): Promise<Worker> {
 
     const blobUrl = await fetchAsBlobUrl(url);
     try {
-        return await waitForWorkerReady(createWorker(blobUrl, asModule), url);
+        return createWorker(blobUrl, asModule);
     } finally {
         URL.revokeObjectURL(blobUrl);
     }

@@ -1,9 +1,8 @@
 import {describe, test, expect, beforeEach, afterEach, vi} from 'vitest';
 import {workerFactory} from './web_worker.ts';
 import {config} from './config.ts';
-import {WORKER_READY_MESSAGE} from './worker_protocol.ts';
 
-function createWorkerMock(initialEvent: 'ready' | 'error' = 'ready') {
+function createWorkerMock() {
     const listeners = new Map<string, EventListener>();
     const worker = {
         postMessage: vi.fn(),
@@ -11,19 +10,9 @@ function createWorkerMock(initialEvent: 'ready' | 'error' = 'ready') {
         removeEventListener: vi.fn((type: string, listener: EventListener) => {
             if (listeners.get(type) === listener) listeners.delete(type);
         }),
-        terminate: vi.fn()
+        terminate: vi.fn(),
+        emit: (type: string, event: Event) => listeners.get(type)?.(event)
     };
-
-    queueMicrotask(() => {
-        if (initialEvent === 'ready') {
-            listeners.get('message')?.({data: WORKER_READY_MESSAGE} as MessageEvent);
-        } else {
-            listeners.get('error')?.({
-                message: 'Worker script failed to load'
-            } as any);
-        }
-    });
-
     return worker;
 }
 
@@ -148,14 +137,29 @@ describe('workerFactory', () => {
         await expect(workerFactory()).rejects.toThrow('Failed to fetch worker script (404)');
     });
 
-    test('rejects and terminates the worker when its script fails to initialize', async () => {
-        const worker = createWorkerMock('error');
+    test('reports an asynchronous worker initialization error', async () => {
+        const worker = createWorkerMock();
         (globalThis as any).Worker = vi.fn(function() { return worker; });
         config.WORKER_URL = '/invalid-worker.mjs';
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        await expect(workerFactory()).rejects.toThrow(
+        await workerFactory();
+        worker.emit('error', {message: 'Worker script failed to load'} as ErrorEvent);
+
+        expect(errorSpy).toHaveBeenCalledWith(
             'Failed to initialize MapLibre worker from "/invalid-worker.mjs": Worker script failed to load'
         );
-        expect(worker.terminate).toHaveBeenCalledTimes(1);
+    });
+
+    test('stops monitoring initialization errors after the worker responds', async () => {
+        const worker = createWorkerMock();
+        (globalThis as any).Worker = vi.fn(function() { return worker; });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await workerFactory();
+        worker.emit('message', {data: {}} as MessageEvent);
+        worker.emit('error', {message: 'Worker runtime error'} as ErrorEvent);
+
+        expect(errorSpy).not.toHaveBeenCalled();
     });
 });
