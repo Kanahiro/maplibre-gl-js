@@ -1,6 +1,31 @@
 import {describe, test, expect, beforeEach, afterEach, vi} from 'vitest';
 import {workerFactory} from './web_worker.ts';
 import {config} from './config.ts';
+import {WORKER_READY_MESSAGE} from './worker_protocol.ts';
+
+function createWorkerMock(initialEvent: 'ready' | 'error' = 'ready') {
+    const listeners = new Map<string, EventListener>();
+    const worker = {
+        postMessage: vi.fn(),
+        addEventListener: vi.fn((type: string, listener: EventListener) => listeners.set(type, listener)),
+        removeEventListener: vi.fn((type: string, listener: EventListener) => {
+            if (listeners.get(type) === listener) listeners.delete(type);
+        }),
+        terminate: vi.fn()
+    };
+
+    queueMicrotask(() => {
+        if (initialEvent === 'ready') {
+            listeners.get('message')?.({data: WORKER_READY_MESSAGE} as MessageEvent);
+        } else {
+            listeners.get('error')?.({
+                message: 'Worker script failed to load'
+            } as any);
+        }
+    });
+
+    return worker;
+}
 
 describe('workerFactory', () => {
     const originalWorker = (globalThis as any).Worker;
@@ -17,7 +42,7 @@ describe('workerFactory', () => {
     });
 
     test('creates a module worker when WORKER_URL is empty', async () => {
-        const WorkerSpy = vi.fn();
+        const WorkerSpy = vi.fn(function() { return createWorkerMock(); });
         (globalThis as any).Worker = WorkerSpy;
 
         await workerFactory();
@@ -27,7 +52,7 @@ describe('workerFactory', () => {
     });
 
     test('creates a classic worker when WORKER_URL ends with .cjs', async () => {
-        const WorkerSpy = vi.fn();
+        const WorkerSpy = vi.fn(function() { return createWorkerMock(); });
         (globalThis as any).Worker = WorkerSpy;
         config.WORKER_URL = '/path/to/worker.cjs';
 
@@ -38,7 +63,7 @@ describe('workerFactory', () => {
     });
 
     test('creates a module worker when WORKER_URL ends with .mjs', async () => {
-        const WorkerSpy = vi.fn();
+        const WorkerSpy = vi.fn(function() { return createWorkerMock(); });
         (globalThis as any).Worker = WorkerSpy;
         config.WORKER_URL = '/path/to/worker.mjs';
 
@@ -49,8 +74,11 @@ describe('workerFactory', () => {
     });
 
     test('falls back to classic worker if module worker construction throws', async () => {
-        const WorkerSpy = vi.fn()
-            .mockImplementationOnce(() => { throw new Error('module workers not supported'); });
+        let workerConstructionCount = 0;
+        const WorkerSpy = vi.fn(function() {
+            if (workerConstructionCount++ === 0) throw new Error('module workers not supported');
+            return createWorkerMock();
+        });
         (globalThis as any).Worker = WorkerSpy;
         config.WORKER_URL = '/path/to/worker.mjs';
 
@@ -68,9 +96,7 @@ describe('workerFactory', () => {
     });
 
     test('cross-origin module worker URL is converted to an import script and the worker is constructed from a Blob URL', async () => {
-        const WorkerSpy = vi.fn(function() {
-            return {postMessage: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn()};
-        });
+        const WorkerSpy = vi.fn(function() { return createWorkerMock(); });
         (globalThis as any).Worker = WorkerSpy;
 
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
@@ -94,9 +120,7 @@ describe('workerFactory', () => {
     });
 
     test('cross-origin classic worker URL is fetched and the worker is constructed from a Blob URL', async () => {
-        const WorkerSpy = vi.fn(function() {
-            return {postMessage: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), terminate: vi.fn()};
-        });
+        const WorkerSpy = vi.fn(function() { return createWorkerMock(); });
         (globalThis as any).Worker = WorkerSpy;
 
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
@@ -122,5 +146,16 @@ describe('workerFactory', () => {
         config.WORKER_URL = 'https://unpkg.com/maplibre-gl/dist/maplibre-gl-worker.cjs';
 
         await expect(workerFactory()).rejects.toThrow('Failed to fetch worker script (404)');
+    });
+
+    test('rejects and terminates the worker when its script fails to initialize', async () => {
+        const worker = createWorkerMock('error');
+        (globalThis as any).Worker = vi.fn(function() { return worker; });
+        config.WORKER_URL = '/invalid-worker.mjs';
+
+        await expect(workerFactory()).rejects.toThrow(
+            'Failed to initialize MapLibre worker from "/invalid-worker.mjs": Worker script failed to load'
+        );
+        expect(worker.terminate).toHaveBeenCalledTimes(1);
     });
 });

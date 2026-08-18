@@ -17,6 +17,7 @@ import type {
     TileParameters
 } from '../source/worker_source.ts';
 import type {WorkerGlobalScopeInterface} from '../util/web_worker.ts';
+import {WORKER_READY_MESSAGE} from '../util/worker_protocol.ts';
 import type {LayerSpecification} from '@maplibre/maplibre-gl-style-spec';
 import {
     MessageType,
@@ -315,4 +316,5 @@ export default class Worker {
 
 if (isWorker(self)) {
     self.worker = new Worker(self);
+    self.postMessage(WORKER_READY_MESSAGE, {transfer: []});
 }

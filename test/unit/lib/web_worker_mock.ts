@@ -1,5 +1,6 @@
 import MapLibreWorker from '../../../src/source/worker.ts';
 import type {WorkerGlobalScopeInterface} from '../../../src/util/web_worker.ts';
+import {WORKER_READY_MESSAGE} from '../../../src/util/worker_protocol.ts';
 import type {ActorTarget} from '../../../src/util/actor.ts';
 
 export class MessageBus implements WorkerGlobalScopeInterface, ActorTarget {
@@ -19,13 +20,13 @@ export class MessageBus implements WorkerGlobalScopeInterface, ActorTarget {
         this.postListeners = postListeners;
     }
 
-    addEventListener(event: 'message', callback: EventListener): void {
+    addEventListener(event: string, callback: EventListener): void {
         if (event === 'message') {
             this.addListeners.push(callback);
         }
     }
 
-    removeEventListener(event: 'message', callback: EventListener): void {
+    removeEventListener(event: string, callback: EventListener): void {
         const i = this.addListeners.indexOf(callback);
         if (i >= 0) {
             this.addListeners.splice(i, 1);
@@ -63,10 +64,10 @@ function setGlobalWorker(MockWorker: { new(...args: any): any}) {
         workerBus.target = parentBus;
 
         parentBus.worker = new MockWorker(workerBus);
+        workerBus.postMessage(WORKER_READY_MESSAGE);
 
         return parentBus;
     };
 }
 
 setGlobalWorker(MapLibreWorker);
-

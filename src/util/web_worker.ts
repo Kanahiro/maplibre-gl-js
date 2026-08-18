@@ -2,6 +2,7 @@ import {type AddProtocolAction, config} from './config.ts';
 import type {default as MaplibreWorker} from '../source/worker.ts';
 import type {WorkerSourceConstructor} from '../source/worker_source.ts';
 import type {GetResourceResponse, RequestParameters} from './ajax.ts';
+import {WORKER_READY_MESSAGE} from './worker_protocol.ts';
 
 export interface WorkerGlobalScopeInterface {
     registerWorkerSource: (sourceName: string, sourceConstructor: WorkerSourceConstructor) => void;
@@ -43,6 +44,29 @@ function createWorker(url: string, asModule: boolean): Worker {
     return new Worker(url);
 }
 
+function waitForWorkerReady(worker: Worker, url: string): Promise<Worker> {
+    return new Promise((resolve, reject) => {
+        const cleanup = () => {
+            worker.removeEventListener('message', onMessage);
+            worker.removeEventListener('error', onError);
+        };
+        const onMessage = (event: MessageEvent) => {
+            if (event.data !== WORKER_READY_MESSAGE) return;
+            cleanup();
+            resolve(worker);
+        };
+        const onError = (event: ErrorEvent) => {
+            cleanup();
+            worker.terminate();
+            const details = event.message ? `: ${event.message}` : '';
+            reject(new Error(`Failed to initialize MapLibre worker from ${JSON.stringify(url)}${details}`));
+        };
+
+        worker.addEventListener('message', onMessage);
+        worker.addEventListener('error', onError);
+    });
+}
+
 async function fetchAsBlobUrl(url: string): Promise<string> {
     const response = await fetch(url);
     if (!response.ok) {
@@ -63,13 +87,13 @@ export async function workerFactory(): Promise<Worker> {
     const asModule = url?.endsWith('.cjs') ? false : true;
 
     if (!isCrossOrigin(url)) {
-        return createWorker(url, asModule);
+        return waitForWorkerReady(createWorker(url, asModule), url);
     }
 
     if (asModule) {
         const blobUrl = importAsBlobUrl(url);
         try {
-            return createWorker(blobUrl, asModule);
+            return await waitForWorkerReady(createWorker(blobUrl, asModule), url);
         } finally {
             URL.revokeObjectURL(blobUrl);
         }
@@ -77,7 +101,7 @@ export async function workerFactory(): Promise<Worker> {
 
     const blobUrl = await fetchAsBlobUrl(url);
     try {
-        return createWorker(blobUrl, asModule);
+        return await waitForWorkerReady(createWorker(blobUrl, asModule), url);
     } finally {
         URL.revokeObjectURL(blobUrl);
     }
